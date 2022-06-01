@@ -29,8 +29,7 @@ folder="Tables"
 if [ -d $folder ]; then
     for f in $folder/*.sql
     do
-        echo "GO
-PRINT N'Creating the $f'
+        echo "PRINT N'Creating the $f'
 GO
 IF EXISTS (
 		SELECT 1 
@@ -55,8 +54,7 @@ folder="Procedures"
 if [ -d $folder ]; then
     for f in $folder/*.sql
     do
-    echo "GO
-PRINT N'Creating/Altering the $f'
+    echo "PRINT N'Creating/Altering the $f'
 GO" >> $filename
 
         cat $f >> $filename
@@ -71,8 +69,7 @@ folder="Data"
 if [ -d $folder ]; then
     for f in $folder/*.sql
     do
-    echo "GO
-PRINT N'Adding/merging initial data the $f'
+    echo "PRINT N'Adding/merging initial data the $f'
 GO" >> $filename
 
         cat $f >> $filename
