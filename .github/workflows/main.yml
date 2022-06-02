@@ -18,13 +18,12 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v3
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Starting the action
-
       # Runs a set of commands using the runners shell
       - name: Run assembly.bash to generate installation_file.sql
-        run: bash "SQLSchema/assemble.bash"
+        run: |
+          cd SQLSchema
+          chmod +x assemble.bash 
+          ./assemble.bash
         shell: bash
       
       # Save generated file as artifact
