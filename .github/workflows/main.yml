@@ -27,10 +27,25 @@ jobs:
         shell: bash
       
       # Save generated file as artifact
-      - name: Upload a Build Artifact
+      - name: Upload a installation_file.sql as Artifact
         uses: actions/upload-artifact@v3.1.0
         with:
+          name: installation-files
           path: SQLSchema/installation_file.sql
+          
+      #Include all RDLs into artefact as well
+      - name: Upload RDLs to the Artifact
+        uses: actions/upload-artifact@v3.1.0
+        with:
+          name: installation-files
+          path: RDL/*.rdl
+          
+      #Additionally add Examples sql too
+      - name: Upload ExamplesInstall.sql to the Artifact
+        uses: actions/upload-artifact@v3.1.0
+        with:
+          name: installation-files
+          path: SQLSchema/ExamplesInstall.sql
       
       # delete installation_file.sql after publishing it
       - name: Clean-ups
