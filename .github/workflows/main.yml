@@ -1,0 +1,40 @@
+name: CI
+on:
+  # Triggers the workflow on push or pull request events but only for the main branch
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  genenrate-sql-installation-file:
+    runs-on: ubuntu-latest
+    
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+
+      # Runs a single command using the runners shell
+      - name: Run a one-line script
+        run: echo Starting the action
+
+      # Runs a set of commands using the runners shell
+      - name: Run assembly.bash to generate installation_file.sql
+        run: bash "SQLSchema/assemble.bash"
+        shell: bash
+      
+      # Save generated file as artifact
+      - name: Upload a Build Artifact
+        uses: actions/upload-artifact@v3.1.0
+        with:
+          path: SQLSchema/installation_file.sql
+      
+      # delete installation_file.sql after publishing it
+      - name: Clean-ups
+        run: rm -f SQLSchema/installation_file.sql
+        shell: bash
+      
