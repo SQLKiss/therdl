@@ -56,13 +56,13 @@ GO
 PRINT N'Example view vwStorage'
 GO
 CREATE OR ALTER VIEW dbo.vwStorage AS 
-SELECT a.Name, a.Quantity, a.Price, c.Name AS [MadeBy],c.ContactName AS [ComplainTo]
+SELECT a.Name, a.Quantity, a.Price, c.Name AS [MadeBy],c.ContactName AS [ComplainTo], a.SortingGroup
 FROM (VALUES
-	 (NULL,'Cartbox',23, 0.01)
-	,(NULL,'Junk',34, 0)
-	,('Amazon','Alexa Echo',1, 30)
-	,('Future Motion','Onewheel XR',1, 2500)
-)a(CustomerName, Name,Quantity,Price)
+	 (NULL,'Shelf','Cartbox',23, 0.01)
+	,(NULL,'Bucket','Junk',34, 0)
+	,('Amazon','Shelf','Alexa Echo',1, 30)
+	,('Future Motion','Garage','Onewheel XR',1, 2500)
+)a(CustomerName,SortingGroup,Name,Quantity,Price)
 LEFT JOIN dbo.Customer c ON c.Name COLLATE DATABASE_DEFAULT = a.CustomerName COLLATE DATABASE_DEFAULT
 ;
 GO
