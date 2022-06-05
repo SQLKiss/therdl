@@ -1,5 +1,5 @@
 GO
---Created:	2022-05-23	Vitaly Borisov
+--Created:	2022-05-23	SQLKiss.com
 CREATE OR ALTER PROCEDURE [dbo].[TherdlReportData] 
 	@json NVARCHAR(MAX)
 AS
@@ -34,6 +34,9 @@ BEGIN
 	DROP TABLE IF EXISTS #Error;
 	CREATE TABLE #Error([Code] VARCHAR(255) DEFAULT('Error'),[Message] NVARCHAR(4000));
 
+	DROP TABLE IF EXISTS #Layout;
+	CREATE TABLE #Layout(Code VARCHAR(255), ColumnName VARCHAR(255), Fill VARCHAR(255), FontColor VARCHAR(255));
+
 	------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 	IF ISJSON(@json) < 1
@@ -42,9 +45,12 @@ BEGIN
 		GOTO Finally;
 	END
 
+	-- Data Level -----------------------------------------------------------------------------------------------------------------------------------
+
 	BEGIN TRY
 		DROP TABLE IF EXISTS #Base;
 		SELECT s.Code, s.OrderID, s.DBName, OBJECT_ID('['+s.DBName+'].['+s.SchemaName+'].['+s.ObjectName+']') AS [object_id], s.SchemaName, s.ObjectName, s.ShowOnlyColumnsArrayListJSON AS [Columns], a.Params, a.Filters
+			,s.LayoutJSON
 		INTO #Base
 		FROM (SELECT JSON_VALUE(j.Value,'$.Code') AS [Code], JSON_QUERY(j.Value,'$.Params') AS [Params], JSON_QUERY(j.Value,'$.Filters') AS [Filters] FROM OPENJSON(@json) j) a
 		INNER JOIN dbo.TherdlSetting s ON s.Code COLLATE DATABASE_DEFAULT = a.Code COLLATE DATABASE_DEFAULT
@@ -172,6 +178,29 @@ BEGIN
 		GOTO Finally;
 	END CATCH
 
+	-- Layout Level ---------------------------------------------------------------------------------------------------------------------------------
+	BEGIN TRY
+		INSERT INTO #Layout(Code, ColumnName, Fill, FontColor)
+		SELECT a.Code, a.ColumnName, a.Fill, a.FontColor 
+		FROM (
+			SELECT b.Code,ROW_NUMBER()OVER(PARTITION BY b.Code,JSON_VALUE(j.Value,'$.Column') ORDER BY b.Code,JSON_VALUE(j.Value,'$.Column')) AS [rn]
+				,JSON_VALUE(j.Value,'$.Column') AS [ColumnName]
+				,JSON_VALUE(j.Value,'$.Fill') AS [Fill]
+				,JSON_VALUE(j.Value,'$.Font.Color') AS [FontColor]
+			FROM #Base b
+			CROSS APPLY OPENJSON(b.LayoutJSON) j
+			WHERE b.LayoutJSON IS NOT NULL
+				AND ISJSON(b.LayoutJSON) > 0
+		) a
+		WHERE a.rn = 1 /*dedup*/
+		;
+	END TRY
+	BEGIN CATCH
+		INSERT INTO #Error(Message)VALUES('Failed to set custom Layout');
+		GOTO Finally;
+	END CATCH
+
+
 Finally:
 	IF EXISTS(SELECT 1 FROM #Error)
 	BEGIN
@@ -183,8 +212,10 @@ Finally:
 
 	--Results
 	SELECT r.Code, s.OrderID, r.[Row], r.[Column], r.ColumnName, r.Value, r.ValueType
+		,l.Fill,l.FontColor
 	FROM #Result r
 	INNER JOIN dbo.TherdlSetting s ON s.Code COLLATE DATABASE_DEFAULT = r.Code COLLATE DATABASE_DEFAULT
+	LEFT JOIN #Layout l ON l.Code COLLATE DATABASE_DEFAULT = r.Code COLLATE DATABASE_DEFAULT AND l.ColumnName COLLATE DATABASE_DEFAULT = r.ColumnName COLLATE DATABASE_DEFAULT
 	ORDER BY s.OrderID,r.[Row],r.[Column]
 	;
 
