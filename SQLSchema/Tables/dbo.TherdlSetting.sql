@@ -6,6 +6,7 @@ CREATE TABLE [dbo].[TherdlSetting](
 	,[SchemaName] VARCHAR(255) NOT NULL CONSTRAINT DF_dbo_SchemaName DEFAULT('dbo')
 	,[ObjectName] VARCHAR(255) NOT NULL
 	,[ShowOnlyColumnsArrayListJSON] NVARCHAR(4000) NULL CONSTRAINT CHK_dbo_TherdlSetting_ShowOnlyColumnsJSON CHECK (ISJSON([ShowOnlyColumnsArrayListJSON])>0) --["ID", "Active", "Name"]
+	,[LayoutJSON] NVARCHAR(4000) NULL CONSTRAINT CHK_dbo_TherdlSetting_LayoutJSON CHECK (ISJSON([LayoutJSON])>0) --[{"Column": "Name","Fill": "Tomato","Font": {"Color": "#FFFFFF", "Weight": "Bold"}}]
 	,[ValidFrom] DATETIME2 (2) GENERATED ALWAYS AS ROW START HIDDEN 
 	,[ValidTo] DATETIME2 (2) GENERATED ALWAYS AS ROW END HIDDEN
 	,CONSTRAINT [PK_dbo_TherdlSetting] PRIMARY KEY CLUSTERED ([Code] ASC)
