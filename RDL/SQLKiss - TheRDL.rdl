@@ -62,6 +62,10 @@
           <DataField>FontColor</DataField>
           <rd:TypeName>System.String</rd:TypeName>
         </Field>
+        <Field Name="FontWeight">
+          <DataField>FontWeight</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
       </Fields>
     </DataSet>
     <DataSet Name="Codes">
@@ -160,6 +164,7 @@ ORDER BY s.Code
 	,Round(CDec(IIf(IsNumeric(Fields!Value.Value) AndAlso Not(IsNothing(Fields!Value.Value)), Fields!Value.Value, 0)),2) * 1.000
 )</Value>
                                   <Style>
+                                    <FontWeight>=IIf(IsNothing(Fields!FontWeight.Value),"Default",Fields!FontWeight.Value)</FontWeight>
                                     <Color>=IIf(IsNothing(Fields!FontColor.Value),"#333333",Fields!FontColor.Value)</Color>
                                   </Style>
                                 </TextRun>

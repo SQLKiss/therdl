@@ -35,7 +35,7 @@ BEGIN
 	CREATE TABLE #Error([Code] VARCHAR(255) DEFAULT('Error'),[Message] NVARCHAR(4000));
 
 	DROP TABLE IF EXISTS #Layout;
-	CREATE TABLE #Layout(Code VARCHAR(255), ColumnName VARCHAR(255), Fill VARCHAR(255), FontColor VARCHAR(255));
+	CREATE TABLE #Layout(Code VARCHAR(255), ColumnName VARCHAR(255), Fill VARCHAR(255), FontColor VARCHAR(255), FontWeight VARCHAR(255));
 
 	------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -180,13 +180,14 @@ BEGIN
 
 	-- Layout Level ---------------------------------------------------------------------------------------------------------------------------------
 	BEGIN TRY
-		INSERT INTO #Layout(Code, ColumnName, Fill, FontColor)
-		SELECT a.Code, a.ColumnName, a.Fill, a.FontColor 
+		INSERT INTO #Layout(Code, ColumnName, Fill, FontColor, FontWeight)
+		SELECT a.Code, a.ColumnName, a.Fill, a.FontColor, a.FontWeight
 		FROM (
 			SELECT b.Code,ROW_NUMBER()OVER(PARTITION BY b.Code,JSON_VALUE(j.Value,'$.Column') ORDER BY b.Code,JSON_VALUE(j.Value,'$.Column')) AS [rn]
 				,JSON_VALUE(j.Value,'$.Column') AS [ColumnName]
 				,JSON_VALUE(j.Value,'$.Fill') AS [Fill]
 				,JSON_VALUE(j.Value,'$.Font.Color') AS [FontColor]
+				,JSON_VALUE(j.Value,'$.Font.Weight') AS [FontWeight]
 			FROM #Base b
 			CROSS APPLY OPENJSON(b.LayoutJSON) j
 			WHERE b.LayoutJSON IS NOT NULL
@@ -212,7 +213,7 @@ Finally:
 
 	--Results
 	SELECT r.Code, s.OrderID, r.[Row], r.[Column], r.ColumnName, r.Value, r.ValueType
-		,l.Fill,l.FontColor
+		,l.Fill, l.FontColor, l.FontWeight
 	FROM #Result r
 	INNER JOIN dbo.TherdlSetting s ON s.Code COLLATE DATABASE_DEFAULT = r.Code COLLATE DATABASE_DEFAULT
 	LEFT JOIN #Layout l ON l.Code COLLATE DATABASE_DEFAULT = r.Code COLLATE DATABASE_DEFAULT AND l.ColumnName COLLATE DATABASE_DEFAULT = r.ColumnName COLLATE DATABASE_DEFAULT
@@ -224,6 +225,7 @@ Finally:
 	DROP TABLE IF EXISTS #Column;
 	DROP TABLE IF EXISTS #Query;
 	DROP TABLE IF EXISTS #Error;
+	DROP TABLE IF EXISTS #Layout;
 	DROP TABLE IF EXISTS #Result;
 END
 GO
