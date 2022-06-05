@@ -9,15 +9,14 @@ BEGIN
 	/*
 	[
 		{
-			"Code": "Customer Information",
+			"Code": "CustomerInfo",
 			-- not required
 			"Params":{ -- this will be used as parameters in functions/procedures, not in use in views/tables
-				"Message": "Test message",
-				"ShowActiveOnly": 1
+				"Message": "Test message"
 			},
 			"Filters": { -- this will be used inside WHERE clause at the very end result data return
-				"Sector": "COM",
-				"ID": [126,148]
+				"Active": 1,
+				"Name": ["CustomerA","CustB"]
 			}
 		},
 		{
@@ -94,7 +93,7 @@ BEGIN
 				FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)'),1,1,'')
 			 + CHAR(13) + 'FROM ' + '['+b.DBName+'].['+b.SchemaName+'].['+b.ObjectName+'] AS [a]'
 			 + IIF(b.Filters IS NOT NULL,CHAR(13) + 'WHERE 1=1','')
-			 + COALESCE(CHAR(13) + ' ' + (SELECT DISTINCT 'AND [a].[' + f.[Key] + '] = ''' + f.Value + '''' 
+			 + COALESCE(CHAR(13) + ' ' + (SELECT DISTINCT 'AND [a].[' + f.[Key] + '] = ''' + REPLACE(f.Value,'''','') + '''' 
 											FROM OPENJSON(b.Filters) f 
 											INNER JOIN #Column c ON c.DBName COLLATE DATABASE_DEFAULT = b.DBName COLLATE DATABASE_DEFAULT
 												AND c.name COLLATE DATABASE_DEFAULT = f.[Key] COLLATE DATABASE_DEFAULT
@@ -102,7 +101,7 @@ BEGIN
 										FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)'),'') --<< non-array filters
 			 + COALESCE(CHAR(13) + ' ' + (SELECT DISTINCT 'AND [a].[' + f.[Key] + '] IN (' 
 										+ STUFF((
-												SELECT ',''' + j.[Value] + ''''
+												SELECT ',''' + REPLACE(j.Value,'''','') + ''''
 												FROM OPENJSON(f.[Value]) j
 												FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)')
 											,1,1,'')
@@ -141,6 +140,12 @@ BEGIN
 	BEGIN
 		BEGIN TRY
 			EXEC sys.sp_executesql @stmt = @Query, @params = @ParmDefinition, @Code = @Code;  
+
+			IF OBJECT_NAME(@@PROCID) IS NULL
+			BEGIN
+				PRINT @Query;
+				PRINT CHAR(13);
+			END
 		END TRY
 		BEGIN CATCH
 			INSERT INTO #Error(Code,Message)VALUES(@Code,'Query into #Result failed');
