@@ -35,7 +35,7 @@ BEGIN
 	CREATE TABLE #Error([Code] VARCHAR(255) DEFAULT('Error'),[Message] NVARCHAR(4000));
 
 	DROP TABLE IF EXISTS #Layout;
-	CREATE TABLE #Layout(Code VARCHAR(255), ColumnName VARCHAR(255), Fill VARCHAR(255), FontColor VARCHAR(255), FontWeight VARCHAR(255));
+	CREATE TABLE #Layout(Code VARCHAR(255), ColumnName VARCHAR(255), [Format] VARCHAR(255), Fill VARCHAR(255), FontColor VARCHAR(255), FontWeight VARCHAR(255));
 
 	------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -180,11 +180,12 @@ BEGIN
 
 	-- Layout Level ---------------------------------------------------------------------------------------------------------------------------------
 	BEGIN TRY
-		INSERT INTO #Layout(Code, ColumnName, Fill, FontColor, FontWeight)
-		SELECT a.Code, a.ColumnName, a.Fill, a.FontColor, a.FontWeight
+		INSERT INTO #Layout(Code, ColumnName, [Format], Fill, FontColor, FontWeight)
+		SELECT a.Code, a.ColumnName, a.[Format], a.Fill, a.FontColor, a.FontWeight
 		FROM (
 			SELECT b.Code,ROW_NUMBER()OVER(PARTITION BY b.Code,JSON_VALUE(j.Value,'$.Column') ORDER BY b.Code,JSON_VALUE(j.Value,'$.Column')) AS [rn]
 				,JSON_VALUE(j.Value,'$.Column') AS [ColumnName]
+				,JSON_VALUE(j.Value,'$.Format') AS [Format]
 				,JSON_VALUE(j.Value,'$.Fill') AS [Fill]
 				,JSON_VALUE(j.Value,'$.Font.Color') AS [FontColor]
 				,JSON_VALUE(j.Value,'$.Font.Weight') AS [FontWeight]
@@ -212,12 +213,30 @@ Finally:
 	END
 
 	--Results
-	SELECT r.Code, s.OrderID, r.[Row], r.[Column], r.ColumnName, r.Value, r.ValueType
-		,l.Fill, l.FontColor, l.FontWeight
-	FROM #Result r
-	INNER JOIN dbo.TherdlSetting s ON s.Code COLLATE DATABASE_DEFAULT = r.Code COLLATE DATABASE_DEFAULT
-	LEFT JOIN #Layout l ON l.Code COLLATE DATABASE_DEFAULT = r.Code COLLATE DATABASE_DEFAULT AND l.ColumnName COLLATE DATABASE_DEFAULT = r.ColumnName COLLATE DATABASE_DEFAULT
-	ORDER BY s.OrderID,r.[Row],r.[Column]
+	DROP TABLE IF EXISTS #FinalResult;
+	SELECT a.Code, a.OrderID, a.Row, a.[Column], a.ColumnName, a.Value, a.ValueType, a.Fill, a.FontColor, a.FontWeight, a.[Format] 
+	INTO #FinalResult
+	FROM (
+		SELECT r.Code, s.OrderID, r.[Row], r.[Column], ROW_NUMBER()OVER(PARTITION BY r.Code, r.[Row], r.[Column] ORDER BY r.ColumnName) AS [rn]
+			,r.ColumnName
+			,CASE
+				WHEN TRY_CONVERT(DATETIME2,r.Value) IS NOT NULL THEN CONVERT(NVARCHAR(MAX),CONVERT(DATETIME2,r.Value),120)
+				ELSE r.Value
+			 END AS [Value]
+			,r.ValueType
+			,l.Fill, l.FontColor, l.FontWeight, l.[Format]
+		FROM #Result r
+		INNER JOIN dbo.TherdlSetting s ON s.Code COLLATE DATABASE_DEFAULT = r.Code COLLATE DATABASE_DEFAULT
+		LEFT JOIN #Layout l ON l.Code COLLATE DATABASE_DEFAULT = r.Code COLLATE DATABASE_DEFAULT AND l.ColumnName COLLATE DATABASE_DEFAULT = r.ColumnName COLLATE DATABASE_DEFAULT
+	) a
+	WHERE a.rn = 1 /*make sure there is no duplicates on Code/Row/Column combination to avoid funky results in report*/
+	;
+
+	-- Output ---------------------------------------------------------------------------------------------------------------------------------------
+	SELECT f.Code, f.OrderID, f.Row, f.[Column], f.ColumnName, f.Value, f.ValueType
+		,f.Fill, f.FontColor, f.FontWeight, f.[Format] 
+	FROM #FinalResult f
+	ORDER BY f.OrderID,f.[Row],f.[Column]
 	;
 
 	--Clean-ups
@@ -227,5 +246,6 @@ Finally:
 	DROP TABLE IF EXISTS #Error;
 	DROP TABLE IF EXISTS #Layout;
 	DROP TABLE IF EXISTS #Result;
+	DROP TABLE IF EXISTS #FinalResult;
 END
 GO

@@ -66,6 +66,10 @@
           <DataField>FontWeight</DataField>
           <rd:TypeName>System.String</rd:TypeName>
         </Field>
+        <Field Name="Format">
+          <DataField>Format</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
       </Fields>
     </DataSet>
     <DataSet Name="Codes">
@@ -93,10 +97,13 @@ ORDER BY s.Code
             <TablixBody>
               <TablixColumns>
                 <TablixColumn>
-                  <Width>1.0625in</Width>
+                  <Width>0.89583in</Width>
                 </TablixColumn>
                 <TablixColumn>
-                  <Width>2.21875in</Width>
+                  <Width>1.28125in</Width>
+                </TablixColumn>
+                <TablixColumn>
+                  <Width>2.0625in</Width>
                 </TablixColumn>
               </TablixColumns>
               <TablixRows>
@@ -139,10 +146,11 @@ ORDER BY s.Code
                             <PaddingBottom>2pt</PaddingBottom>
                           </Style>
                         </Textbox>
-                        <ColSpan>2</ColSpan>
+                        <ColSpan>3</ColSpan>
                       </CellContents>
                       <DataElementOutput>Output</DataElementOutput>
                     </TablixCell>
+                    <TablixCell />
                     <TablixCell />
                   </TablixCells>
                 </TablixRow>
@@ -160,11 +168,15 @@ ORDER BY s.Code
                               <TextRuns>
                                 <TextRun>
                                   <Value>= IIf(Not(IsNumeric(Fields!Value.Value))
-	,CStr(Fields!Value.Value)
+	,IIf(IsDate(Fields!Value.Value)
+		,CDate(IIf(IsDate(Fields!Value.Value),Fields!Value.Value,CDate("1901-01-01")))
+		,CStr(Fields!Value.Value)
+	)
 	,Round(CDec(IIf(IsNumeric(Fields!Value.Value) AndAlso Not(IsNothing(Fields!Value.Value)), Fields!Value.Value, 0)),2) * 1.000
 )</Value>
                                   <Style>
                                     <FontWeight>=IIf(IsNothing(Fields!FontWeight.Value),"Default",Fields!FontWeight.Value)</FontWeight>
+                                    <Format>=IIf(IsNothing(Fields!Format.Value),"",Fields!Format.Value)</Format>
                                     <Color>=IIf(IsNothing(Fields!FontColor.Value),"#333333",Fields!FontColor.Value)</Color>
                                   </Style>
                                 </TextRun>
@@ -188,10 +200,12 @@ ORDER BY s.Code
                             <PaddingBottom>2pt</PaddingBottom>
                           </Style>
                         </Textbox>
-                        <ColSpan>2</ColSpan>
+                        <ColSpan>3</ColSpan>
+                        <rd:Selected>true</rd:Selected>
                       </CellContents>
                       <DataElementOutput>Output</DataElementOutput>
                     </TablixCell>
+                    <TablixCell />
                     <TablixCell />
                   </TablixCells>
                 </TablixRow>
@@ -214,7 +228,12 @@ ORDER BY s.Code
                     <TablixMember />
                     <TablixMember>
                       <Visibility>
-                        <Hidden>=Max(Len(CStr(Fields!Value.Value)))&lt;20 AndAlso Max(Len(CStr(Fields!ColumnName.Value)))&lt;20</Hidden>
+                        <Hidden>=Max(Len(CStr(Fields!Value.Value)))&lt;10 AndAlso Max(Len(CStr(Fields!ColumnName.Value)))&lt;10</Hidden>
+                      </Visibility>
+                    </TablixMember>
+                    <TablixMember>
+                      <Visibility>
+                        <Hidden>=Max(Len(CStr(Fields!Value.Value)))&lt;50 AndAlso Max(Len(CStr(Fields!ColumnName.Value)))&lt;50</Hidden>
                       </Visibility>
                     </TablixMember>
                   </TablixMembers>
@@ -305,14 +324,14 @@ ORDER BY s.Code
             <RepeatRowHeaders>true</RepeatRowHeaders>
             <DataSetName>MainDataSet</DataSetName>
             <Height>0.46in</Height>
-            <Width>3.58333in</Width>
+            <Width>4.54166in</Width>
             <Style />
           </Tablix>
         </ReportItems>
         <Height>0.48542in</Height>
         <Style />
       </Body>
-      <Width>3.58333in</Width>
+      <Width>4.55208in</Width>
       <Page>
         <LeftMargin>1in</LeftMargin>
         <RightMargin>1in</RightMargin>
@@ -339,7 +358,7 @@ ORDER BY s.Code
       <Nullable>true</Nullable>
       <DefaultValue>
         <Values>
-          <Value>{"ID":[1,3]}</Value>
+          <Value>{"ID":[1,3,4]}</Value>
         </Values>
       </DefaultValue>
       <AllowBlank>true</AllowBlank>
