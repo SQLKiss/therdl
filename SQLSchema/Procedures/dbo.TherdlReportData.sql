@@ -49,13 +49,15 @@ BEGIN
 
 	BEGIN TRY
 		DROP TABLE IF EXISTS #Base;
-		SELECT s.Code, s.OrderID, s.DBName, OBJECT_ID('['+s.DBName+'].['+s.SchemaName+'].['+s.ObjectName+']') AS [object_id], s.SchemaName, s.ObjectName, s.ShowOnlyColumnsArrayListJSON AS [Columns], a.Params, a.Filters
+		SELECT s.Code, s.OrderID, s.DBName, OBJECT_ID('['+s.DBName+'].['+s.SchemaName+'].['+s.ObjectName+']') AS [object_id], s.SchemaName, s.ObjectName
+			,s.ShowOnlyColumnsArrayListJSON AS [Columns], a.Params, a.Filters
 			,s.LayoutJSON
 		INTO #Base
 		FROM (SELECT JSON_VALUE(j.Value,'$.Code') AS [Code], JSON_QUERY(j.Value,'$.Params') AS [Params], JSON_QUERY(j.Value,'$.Filters') AS [Filters] FROM OPENJSON(@json) j) a
 		INNER JOIN dbo.TherdlSetting s ON s.Code COLLATE DATABASE_DEFAULT = a.Code COLLATE DATABASE_DEFAULT
-		WHERE OBJECT_ID('['+s.DBName+'].['+s.SchemaName+'].['+s.ObjectName+']') IS NOT NULL /*to make sure this object actually exists, also this will filter out any tries of SQL injections*/
-			AND EXISTS(SELECT 1 FROM sys.databases db WHERE db.name COLLATE DATABASE_DEFAULT = s.DBName COLLATE DATABASE_DEFAULT) /*second check on DB name just in case*/
+		WHERE /*VB-01*/ OBJECT_ID('['+s.DBName+'].['+s.SchemaName+'].['+s.ObjectName+']') IS NOT NULL /*to make sure this object actually exists, also this will filter out any tries of SQL injections*/
+			  /*VB-02*/ AND EXISTS(SELECT 1 FROM sys.databases db WHERE db.name COLLATE DATABASE_DEFAULT = s.DBName COLLATE DATABASE_DEFAULT) /*second check on DB name just in case*/
+			  /*VB-07*/ AND (s.ShowOnlyColumnsArrayListJSON IS NULL OR ISJSON(s.ShowOnlyColumnsArrayListJSON) > 0)
 		;
 	END TRY
 	BEGIN CATCH
@@ -64,9 +66,15 @@ BEGIN
 	END CATCH
 
 	BEGIN TRY
+		/*
+		VB: SQL Injection check. Columns to be aware of:
+		#Base.DBName - checked at VB-01
+		*/
+
 		--Getting columns data from each DB (DBName has been checked in query above. Objects must be only table or view)
 		DROP TABLE IF EXISTS #Column; CREATE TABLE #Column(DBName VARCHAR(255),[object_id] INT,name NVARCHAR(255),[column_id] INT);
 		DECLARE @ColumnDynamicSQL NVARCHAR(MAX);
+		/*VB-03*/
 		SET @ColumnDynamicSQL = (
 				SELECT (SELECT DISTINCT N'
 					INSERT INTO #Column(DBName, object_id, name, column_id)
@@ -86,6 +94,43 @@ BEGIN
 	END CATCH
 
 	BEGIN TRY
+		--To make sure provided list of columns actually matches with list of exisitng columns
+		/*VB-08*/
+		UPDATE up SET up.[Columns] = IIF(ISJSON(a.ValidatedColumns)>0,a.ValidatedColumns,'["Invalid_Show_Nothing?"]')
+		FROM (
+			SELECT b.Code,b.Columns AS [Columns]
+				,'[' + STUFF((
+					SELECT ',"' + col.name + '"'
+					FROM OPENJSON(b.Columns) cc
+					INNER JOIN #Column col ON col.DBName COLLATE DATABASE_DEFAULT = b.DBName COLLATE DATABASE_DEFAULT AND col.name COLLATE DATABASE_DEFAULT = cc.[Value] COLLATE DATABASE_DEFAULT
+					ORDER BY cc.[Key]
+					FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)')
+					,1,1,'') + ']' AS [ValidatedColumns]
+			FROM #Base b
+			WHERE ISJSON(b.Columns) > 0
+		) a
+		INNER JOIN #Base up ON up.Code COLLATE DATABASE_DEFAULT = a.Code COLLATE DATABASE_DEFAULT
+		;
+	END TRY
+	BEGIN CATCH
+		INSERT INTO #Error(Message)VALUES('Failed to validate #Base table Columns list');
+		GOTO Finally;
+	END CATCH
+
+	BEGIN TRY
+		/*
+		VB: SQL Injection check. Columns to be aware of:
+		#Column.name - checked at VB-03, objects can be only Tables/Views, columns must exist for the object
+		#Base.DBName - checked at VB-02
+		#Base.SchemaName - checked at VB-01
+		#Base.ObjectName - checked at VB-01
+		#Base.Filters:
+			f.[Key] - checked at VB-04, filter's key must match with actual column name, which was checked at VB-03
+			f.[Value] and j.[Value] - replace all incoming single quotes as double single quotes - VB-05
+				additionally lenght of such values are limited to 4000 characters - VB-06
+		#Base.object_id - checked at VB-03, it can be only actual object_id(int) of existing object
+		#Base.Columns - checked it is JSON object only VB-07, also values of the Columns are revalidated at VB-08
+		*/
 		DROP TABLE IF EXISTS #Query;
 		SELECT b.Code
 			,'DECLARE @jsonquery NVARCHAR(MAX) = (' 
@@ -99,22 +144,24 @@ BEGIN
 				FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)'),1,1,'')
 			 + CHAR(13) + 'FROM ' + '['+b.DBName+'].['+b.SchemaName+'].['+b.ObjectName+'] AS [a]'
 			 + IIF(b.Filters IS NOT NULL,CHAR(13) + 'WHERE 1=1','')
-			 + COALESCE(CHAR(13) + ' ' + (SELECT DISTINCT 'AND [a].[' + f.[Key] + '] = ''' + REPLACE(f.Value,'''','') + '''' 
+			 + COALESCE(CHAR(13) + ' ' + (SELECT DISTINCT 'AND [a].[' + f.[Key] + '] = ''' + /*VB-05*/REPLACE(f.Value,'''','''''') + '''' 
 											FROM OPENJSON(b.Filters) f 
 											INNER JOIN #Column c ON c.DBName COLLATE DATABASE_DEFAULT = b.DBName COLLATE DATABASE_DEFAULT
-												AND c.name COLLATE DATABASE_DEFAULT = f.[Key] COLLATE DATABASE_DEFAULT
+												/*VB-04*/AND c.name COLLATE DATABASE_DEFAULT = f.[Key] COLLATE DATABASE_DEFAULT
+												/*VB-06*/AND LEN(f.[Value]) <= 4000
 											WHERE f.Type <> 4 
 										FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)'),'') --<< non-array filters
 			 + COALESCE(CHAR(13) + ' ' + (SELECT DISTINCT 'AND [a].[' + f.[Key] + '] IN (' 
 										+ STUFF((
-												SELECT ',''' + REPLACE(j.Value,'''','') + ''''
+												SELECT ',''' + /*VB-05*/REPLACE(j.Value,'''','''''') + ''''
 												FROM OPENJSON(f.[Value]) j
+												/*VB-06*/WHERE LEN(j.[Value]) <= 4000
 												FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)')
 											,1,1,'')
 										+ ')'
 									FROM OPENJSON(b.Filters) f
 									INNER JOIN #Column c ON c.DBName COLLATE DATABASE_DEFAULT = b.DBName COLLATE DATABASE_DEFAULT
-												AND c.name COLLATE DATABASE_DEFAULT = f.[Key] COLLATE DATABASE_DEFAULT
+											/*VB-04*/AND c.name COLLATE DATABASE_DEFAULT = f.[Key] COLLATE DATABASE_DEFAULT
 									WHERE f.Type = 4
 									FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)'),'') --<< array filters
 			 + CHAR(13) + 'FOR JSON PATH, INCLUDE_NULL_VALUES);'
