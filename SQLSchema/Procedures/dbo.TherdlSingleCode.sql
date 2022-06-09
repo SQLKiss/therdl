@@ -1,5 +1,5 @@
 GO
---Created:	2022-05-24	SQLKiss.com
+--Created:	2022-05-24	www.SQLKiss.com
 CREATE OR ALTER PROCEDURE [dbo].[TherdlSingleCode] 
 	@Code NVARCHAR(255),
 	@Filters NVARCHAR(MAX) = NULL,

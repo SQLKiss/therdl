@@ -1,5 +1,5 @@
 GO
---Created:	2022-05-23	SQLKiss.com
+--Created:	2022-05-23	www.SQLKiss.com
 CREATE OR ALTER PROCEDURE [dbo].[TherdlReportData] 
 	@json NVARCHAR(MAX)
 AS
