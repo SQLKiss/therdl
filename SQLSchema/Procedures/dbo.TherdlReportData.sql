@@ -34,6 +34,12 @@ BEGIN
 	DROP TABLE IF EXISTS #Error;
 	CREATE TABLE #Error([Code] VARCHAR(255) DEFAULT('Error'),[Message] NVARCHAR(4000));
 
+	DROP TABLE IF EXISTS #Column;
+	CREATE TABLE #Column(DBName VARCHAR(255),[object_id] INT,[type] VARCHAR(50),name NVARCHAR(255),[column_id] INT);
+
+	DROP TABLE IF EXISTS #Parameter;
+	CREATE TABLE #Parameter(DBName VARCHAR(255),[object_id] INT,name NVARCHAR(255),[parameter_id] INT, [Param] NVARCHAR(4000), [Value] NVARCHAR(4000));
+
 	DROP TABLE IF EXISTS #Layout;
 	CREATE TABLE #Layout(Code VARCHAR(255), ColumnName VARCHAR(255), [Format] VARCHAR(255), Fill VARCHAR(255), FontColor VARCHAR(255), FontWeight VARCHAR(255));
 
@@ -71,22 +77,26 @@ BEGIN
 		#Base.DBName - checked at VB-01
 		*/
 
-		--Getting columns data from each DB (DBName has been checked in query above. Objects must be only table or view)
-		DROP TABLE IF EXISTS #Column; CREATE TABLE #Column(DBName VARCHAR(255),[object_id] INT,name NVARCHAR(255),[column_id] INT);
-		DECLARE @ColumnDynamicSQL NVARCHAR(MAX);
+		--Getting columns data from each DB (DBName has been checked in query above. Objects must be only table or view or table function)
+		DECLARE @ColParDynamicSQL NVARCHAR(MAX);
 		/*VB-03*/
-		SET @ColumnDynamicSQL = (
+		SET @ColParDynamicSQL = (
 				SELECT (SELECT DISTINCT N'
-					INSERT INTO #Column(DBName, object_id, name, column_id)
-					SELECT DISTINCT '''+b.DBName+''' AS [DBName],c.object_id,c.name,c.column_id
+					INSERT INTO #Column(DBName, [type], object_id, name, column_id)
+					SELECT DISTINCT '''+b.DBName+''' AS [DBName],o.[type],c.object_id,c.name,c.column_id
 					FROM ['+b.DBName+'].sys.columns c
-					INNER JOIN ['+b.DBName+'].sys.objects o ON o.object_id = c.object_id AND o.type IN (''U'',''V'')
-					WHERE c.object_id = ' + CONVERT(VARCHAR(255),b.object_id) + ';'
+					INNER JOIN ['+b.DBName+'].sys.objects o ON o.object_id = c.object_id AND o.type IN (''U'',''V'',''TF'')
+					WHERE c.object_id = ' + CONVERT(VARCHAR(255),b.object_id) + ';' + CHAR(13)
+					+ N'
+					INSERT INTO #Parameter(DBName, object_id, name, parameter_id)
+					SELECT DISTINCT '''+b.DBName+''' AS [DBName],p.object_id,p.name,p.parameter_id
+					FROM ['+b.DBName+'].sys.parameters p
+					WHERE p.object_id = ' + CONVERT(VARCHAR(255),b.object_id) + ';'
 					FROM #Base b
 					FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)')
 			)
 		;
-		IF @ColumnDynamicSQL IS NOT NULL EXEC sys.sp_executesql @stmt = @ColumnDynamicSQL;
+		IF @ColParDynamicSQL IS NOT NULL EXEC sys.sp_executesql @stmt = @ColParDynamicSQL;
 	END TRY
 	BEGIN CATCH
 		INSERT INTO #Error(Message)VALUES('Failed to fill in #Column table');
@@ -94,9 +104,48 @@ BEGIN
 	END CATCH
 
 	BEGIN TRY
+		--Validate the required parameter for TF match with provided
+		UPDATE p SET p.Param = a.Param, p.Value = a.Value
+		FROM #Parameter p
+		LEFT JOIN (
+			SELECT b.DBName,b.object_id, '@'+j.[Key] AS [name], j.[Key] AS [Param],REPLACE(j.Value,'''','''''') AS [Value]
+			FROM #Base b
+			CROSS APPLY OPENJSON(b.Params) j
+			WHERE /*VB-09*/ISJSON(b.Params) > 0
+		) a ON a.DBName COLLATE DATABASE_DEFAULT = p.DBName COLLATE DATABASE_DEFAULT AND a.object_id = p.object_id AND a.name COLLATE DATABASE_DEFAULT = p.name COLLATE DATABASE_DEFAULT
+		;
+	END TRY
+	BEGIN CATCH
+		INSERT INTO #Error(Message)VALUES('Failed to validate Parameters');
+		GOTO Finally;
+	END CATCH
+
+	IF EXISTS(SELECT 1 FROM #Parameter p WHERE p.Param IS NULL)
+	BEGIN
+		DECLARE @MissingParamMessage NVARCHAR(4000) = 'TF object requires next parameters: ';
+		BEGIN TRY
+			SELECT @MissingParamMessage +=
+				STUFF((
+					SELECT ',' + SUBSTRING(p.name,2,999)
+					FROM #Parameter p
+					INNER JOIN #Base b ON b.DBName COLLATE DATABASE_DEFAULT = p.DBName COLLATE DATABASE_DEFAULT AND b.object_id = p.object_id
+					WHERE p.Param IS NULL
+					ORDER BY p.parameter_id
+					FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)')
+				,1,1,'')
+			;
+		END TRY
+		BEGIN CATCH
+			SET @MissingParamMessage = 'Incorrect or missing parameters for Table Function object';
+		END CATCH
+		INSERT INTO #Error(Code,Message)VALUES('Invalid Input',@MissingParamMessage);
+		GOTO Finally;
+	END
+
+	BEGIN TRY
 		--To make sure provided list of columns actually matches with list of exisitng columns
 		/*VB-08*/
-		UPDATE up SET up.[Columns] = IIF(ISJSON(a.ValidatedColumns)>0,a.ValidatedColumns,'["Invalid_Show_Nothing?"]')
+		UPDATE up SET up.[Columns] = IIF(ISJSON(a.ValidatedColumns)>0,a.ValidatedColumns,'[]')
 		FROM (
 			SELECT b.Code,b.Columns AS [Columns]
 				,'[' + STUFF((
@@ -128,6 +177,8 @@ BEGIN
 			f.[Key] - checked at VB-04, filter's key must match with actual column name, which was checked at VB-03
 			f.[Value] and j.[Value] - replace all incoming single quotes as double single quotes - VB-05
 				additionally lenght of such values are limited to 4000 characters - VB-06
+		#Base.Parameters - checked it is JSON object only VB-09, replace all incoming single quotes as double single quotes - VB-10
+				additionally lenght of such values are limited to 4000 characters - VB-11
 		#Base.object_id - checked at VB-03, it can be only actual object_id(int) of existing object
 		#Base.Columns - checked it is JSON object only VB-07, also values of the Columns are revalidated at VB-08
 		*/
@@ -142,7 +193,21 @@ BEGIN
 					AND (b.Columns IS NULL OR j.Value COLLATE DATABASE_DEFAULT = c.name COLLATE DATABASE_DEFAULT)
 				ORDER BY c.column_id
 				FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)'),1,1,'')
-			 + CHAR(13) + 'FROM ' + '['+b.DBName+'].['+b.SchemaName+'].['+b.ObjectName+'] AS [a]'
+			 + CHAR(13) + 'FROM ' + '['+b.DBName+'].['+b.SchemaName+'].['+b.ObjectName+']'
+						+ IIF(t.[Type]='TF','(' 
+								+ COALESCE(
+									STUFF((
+										SELECT ',''' + /*VB-10*/REPLACE(p.Value,'''','''''') + ''''
+										FROM #Parameter p
+										WHERE p.DBName COLLATE DATABASE_DEFAULT = b.DBName COLLATE DATABASE_DEFAULT
+											AND p.object_id = b.object_id
+										/*VB-11*/AND LEN(p.[Value]) <= 4000
+										ORDER BY p.parameter_id
+										FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)')
+									,1,1,'')
+								  ,'')
+							+ ')','')
+						+ ' AS [a]'
 			 + IIF(b.Filters IS NOT NULL,CHAR(13) + 'WHERE 1=1','')
 			 + COALESCE(CHAR(13) + ' ' + (SELECT DISTINCT 'AND [a].[' + f.[Key] + '] ' + IIF(f.[Value] LIKE '%','LIKE','=') + ' ''' + /*VB-05*/REPLACE(f.Value,'''','''''') + '''' 
 											FROM OPENJSON(b.Filters) f 
@@ -175,6 +240,7 @@ BEGIN
 			 + CHAR(13) AS [Query]
 		INTO #Query
 		FROM #Base b
+		INNER JOIN (SELECT col.DBName,col.object_id,MAX(col.[type]) AS [Type] FROM #Column col GROUP BY col.DBName, col.object_id) t  ON t.DBName COLLATE DATABASE_DEFAULT = b.DBName COLLATE DATABASE_DEFAULT AND t.object_id = b.object_id
 		WHERE (b.Columns IS NULL OR ISJSON(b.Columns) > 0)
 		;
 	END TRY
@@ -286,6 +352,7 @@ Finally:
 	--Clean-ups
 	DROP TABLE IF EXISTS #Base;
 	DROP TABLE IF EXISTS #Column;
+	DROP TABLE IF EXISTS #Parameter;
 	DROP TABLE IF EXISTS #Query;
 	DROP TABLE IF EXISTS #Error;
 	DROP TABLE IF EXISTS #Layout;
