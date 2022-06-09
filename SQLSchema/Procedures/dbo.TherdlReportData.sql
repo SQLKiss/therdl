@@ -144,7 +144,7 @@ BEGIN
 				FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)'),1,1,'')
 			 + CHAR(13) + 'FROM ' + '['+b.DBName+'].['+b.SchemaName+'].['+b.ObjectName+'] AS [a]'
 			 + IIF(b.Filters IS NOT NULL,CHAR(13) + 'WHERE 1=1','')
-			 + COALESCE(CHAR(13) + ' ' + (SELECT DISTINCT 'AND [a].[' + f.[Key] + '] = ''' + /*VB-05*/REPLACE(f.Value,'''','''''') + '''' 
+			 + COALESCE(CHAR(13) + ' ' + (SELECT DISTINCT 'AND [a].[' + f.[Key] + '] ' + IIF(f.[Value] LIKE '%','LIKE','=') + ' ''' + /*VB-05*/REPLACE(f.Value,'''','''''') + '''' 
 											FROM OPENJSON(b.Filters) f 
 											INNER JOIN #Column c ON c.DBName COLLATE DATABASE_DEFAULT = b.DBName COLLATE DATABASE_DEFAULT
 												/*VB-04*/AND c.name COLLATE DATABASE_DEFAULT = f.[Key] COLLATE DATABASE_DEFAULT
