@@ -266,10 +266,7 @@ Finally:
 	FROM (
 		SELECT r.Code, s.OrderID, r.[Row], r.[Column], ROW_NUMBER()OVER(PARTITION BY r.Code, r.[Row], r.[Column] ORDER BY r.ColumnName) AS [rn]
 			,r.ColumnName
-			,CASE
-				WHEN TRY_CONVERT(DATETIME2,r.Value) IS NOT NULL THEN CONVERT(NVARCHAR(MAX),CONVERT(DATETIME2,r.Value),120)
-				ELSE r.Value
-			 END AS [Value]
+			,r.Value AS [Value]
 			,r.ValueType
 			,l.Fill, l.FontColor, l.FontWeight, l.[Format]
 		FROM #Result r
