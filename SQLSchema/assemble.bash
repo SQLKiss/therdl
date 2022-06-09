@@ -65,6 +65,21 @@ GO" >> $filename
     done
 fi
 
+folder="TableFunctions"
+if [ -d $folder ]; then
+    for f in $folder/*.sql
+    do
+    echo "PRINT N'Creating/Altering the $f'
+GO" >> $filename
+
+        cat $f >> $filename
+
+        echo "GO
+IF @@ERROR <> 0 SET NOEXEC ON
+GO" >> $filename
+    done
+fi
+
 folder="Data"
 if [ -d $folder ]; then
     for f in $folder/*.sql
