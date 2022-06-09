@@ -20,6 +20,10 @@
           <QueryParameter Name="@Filters">
             <Value>=Parameters!Filters.Value</Value>
           </QueryParameter>
+          <QueryParameter Name="@Params">
+            <Value>=Parameters!Params.Value</Value>
+            <rd:UserDefined>true</rd:UserDefined>
+          </QueryParameter>
         </QueryParameters>
         <CommandType>StoredProcedure</CommandType>
         <CommandText>dbo.TherdlSingleCode</CommandText>
@@ -201,7 +205,6 @@ ORDER BY s.Code
                           </Style>
                         </Textbox>
                         <ColSpan>3</ColSpan>
-                        <rd:Selected>true</rd:Selected>
                       </CellContents>
                       <DataElementOutput>Output</DataElementOutput>
                     </TablixCell>
@@ -353,6 +356,16 @@ ORDER BY s.Code
         </DataSetReference>
       </ValidValues>
     </ReportParameter>
+    <ReportParameter Name="Params">
+      <DataType>String</DataType>
+      <Nullable>true</Nullable>
+      <DefaultValue>
+        <Values>
+          <Value xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true" />
+        </Values>
+      </DefaultValue>
+      <Prompt>Parameters</Prompt>
+    </ReportParameter>
     <ReportParameter Name="Filters">
       <DataType>String</DataType>
       <Nullable>true</Nullable>
@@ -377,6 +390,11 @@ ORDER BY s.Code
         </CellDefinition>
         <CellDefinition>
           <ColumnIndex>1</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>Params</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>2</ColumnIndex>
           <RowIndex>0</RowIndex>
           <ParameterName>Filters</ParameterName>
         </CellDefinition>
