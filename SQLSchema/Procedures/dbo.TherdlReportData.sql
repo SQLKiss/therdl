@@ -28,6 +28,8 @@ BEGIN
 		}
 	]
 	*/
+	DECLARE @ConditionalFormatColumnName VARCHAR(255) = '_TheRDLLayoutOverrideJSON_';
+
 	DROP TABLE IF EXISTS #Result;
 	CREATE TABLE #Result(Code VARCHAR(255),[Row] INT, [Column] INT, ColumnName NVARCHAR(255),[Value] NVARCHAR(MAX), ValueType INT);
 
@@ -41,7 +43,7 @@ BEGIN
 	CREATE TABLE #Parameter(DBName VARCHAR(255),[object_id] INT,name NVARCHAR(255),[parameter_id] INT, [Param] NVARCHAR(4000), [Value] NVARCHAR(4000));
 
 	DROP TABLE IF EXISTS #Layout;
-	CREATE TABLE #Layout(Code VARCHAR(255), ColumnName VARCHAR(255), [Format] VARCHAR(255), Fill VARCHAR(255), FontColor VARCHAR(255), FontWeight VARCHAR(255));
+	CREATE TABLE #Layout(Code VARCHAR(255), [Row] INT, ColumnName VARCHAR(255), [Format] VARCHAR(255), Fill VARCHAR(255), FontColor VARCHAR(255), FontWeight VARCHAR(255));
 
 	------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -143,6 +145,12 @@ BEGIN
 	END
 
 	BEGIN TRY
+		--To support custom conditional formating, add artificial column name. Next check will validate the column and if it doesn't exist - column will be ignored/removed.
+		UPDATE b SET b.Columns = JSON_MODIFY(b.Columns,'append $',@ConditionalFormatColumnName)
+		FROM #Base b
+		WHERE ISJSON(b.Columns) > 0
+		;
+
 		--To make sure provided list of columns actually matches with list of exisitng columns
 		/*VB-08*/
 		UPDATE up SET up.[Columns] = IIF(ISJSON(a.ValidatedColumns)>0,a.ValidatedColumns,'[]')
@@ -293,8 +301,8 @@ BEGIN
 
 	-- Layout Level ---------------------------------------------------------------------------------------------------------------------------------
 	BEGIN TRY
-		INSERT INTO #Layout(Code, ColumnName, [Format], Fill, FontColor, FontWeight)
-		SELECT a.Code, a.ColumnName, a.[Format], a.Fill, a.FontColor, a.FontWeight
+		INSERT INTO #Layout(Code, [Row], ColumnName, [Format], Fill, FontColor, FontWeight)
+		SELECT a.Code, rr.[Row], a.ColumnName, a.[Format], a.Fill, a.FontColor, a.FontWeight
 		FROM (
 			SELECT b.Code,ROW_NUMBER()OVER(PARTITION BY b.Code,JSON_VALUE(j.Value,'$.Column') ORDER BY b.Code,JSON_VALUE(j.Value,'$.Column')) AS [rn]
 				,JSON_VALUE(j.Value,'$.Column') AS [ColumnName]
@@ -307,14 +315,55 @@ BEGIN
 			WHERE b.LayoutJSON IS NOT NULL
 				AND ISJSON(b.LayoutJSON) > 0
 		) a
+		CROSS JOIN (SELECT DISTINCT r.[Row] FROM #Result r) rr --<< this means apply formating onto all rows
 		WHERE a.rn = 1 /*dedup*/
 		;
 	END TRY
 	BEGIN CATCH
-		INSERT INTO #Error(Message)VALUES('Failed to set custom Layout');
+		INSERT INTO #Error(Message)VALUES('Failed to set all rows Layout');
 		GOTO Finally;
 	END CATCH
 
+	BEGIN TRY
+		--Specific layout overrides from the objects @ConditionalFormatColumnName column
+		MERGE #Layout AS target
+		USING (
+			SELECT a.Code, a.[Row], a.ColumnName, a.[Format], a.Fill, a.FontColor, a.FontWeight
+			FROM (
+				SELECT r.Code,r.[Row],JSON_VALUE(j.Value,'$.Column') AS [ColumnName]
+					,ROW_NUMBER()OVER(PARTITION BY r.Code,r.Row,JSON_VALUE(j.Value,'$.Column') ORDER BY r.Code,r.[Row],JSON_VALUE(j.Value,'$.Column')) AS [rn]
+					,JSON_VALUE(j.Value,'$.Format') AS [Format]
+					,JSON_VALUE(j.Value,'$.Fill') AS [Fill]
+					,JSON_VALUE(j.Value,'$.Font.Color') AS [FontColor]
+					,JSON_VALUE(j.Value,'$.Font.Weight') AS [FontWeight]
+				FROM #Result r
+				CROSS APPLY OPENJSON(r.Value) j
+				WHERE r.ColumnName = @ConditionalFormatColumnName
+					AND ISJSON(r.Value) > 0
+			) a
+			WHERE a.rn = 1
+		) AS source ON source.Code COLLATE DATABASE_DEFAULT = target.Code COLLATE DATABASE_DEFAULT
+			AND source.[Row] = target.[Row]
+			AND source.ColumnName COLLATE DATABASE_DEFAULT = target.ColumnName COLLATE DATABASE_DEFAULT
+		WHEN MATCHED AND ( -- Merge one way, do not override exiting all-rows-settings
+					COALESCE(target.[Format],'') <> source.[Format]
+				 OR COALESCE(target.[Fill],'') <> source.[Fill]
+				 OR COALESCE(target.[FontColor],'') <> source.[FontColor]
+				 OR COALESCE(target.[FontWeight],'') <> source.[FontWeight]
+				)
+			THEN UPDATE SET
+				 target.[Format] = COALESCE(source.[Format],target.[Format])
+				,target.[Fill] = COALESCE(source.[Fill],target.[Fill])
+				,target.[FontColor] = COALESCE(source.[FontColor],target.[FontColor])
+				,target.[FontWeight] = COALESCE(source.[FontWeight],target.[FontWeight])
+		WHEN NOT MATCHED THEN INSERT(Code, [Row], ColumnName, [Format], Fill, FontColor, FontWeight)
+			VALUES(source.Code, source.[Row], source.ColumnName, source.[Format], source.Fill, source.FontColor, source.FontWeight)
+		;
+	END TRY
+	BEGIN CATCH
+		INSERT INTO #Error(Message)VALUES('Failed to merge custom Layout');
+		GOTO Finally;
+	END CATCH
 
 Finally:
 	IF EXISTS(SELECT 1 FROM #Error)
@@ -337,7 +386,8 @@ Finally:
 			,l.Fill, l.FontColor, l.FontWeight, l.[Format]
 		FROM #Result r
 		INNER JOIN dbo.TherdlSetting s ON s.Code COLLATE DATABASE_DEFAULT = r.Code COLLATE DATABASE_DEFAULT
-		LEFT JOIN #Layout l ON l.Code COLLATE DATABASE_DEFAULT = r.Code COLLATE DATABASE_DEFAULT AND l.ColumnName COLLATE DATABASE_DEFAULT = r.ColumnName COLLATE DATABASE_DEFAULT
+		LEFT JOIN #Layout l ON l.Code COLLATE DATABASE_DEFAULT = r.Code COLLATE DATABASE_DEFAULT AND l.ColumnName COLLATE DATABASE_DEFAULT = r.ColumnName COLLATE DATABASE_DEFAULT AND l.[Row] = r.[Row]
+		WHERE r.ColumnName <> @ConditionalFormatColumnName
 	) a
 	WHERE a.rn = 1 /*make sure there is no duplicates on Code/Row/Column combination to avoid funky results in report*/
 	;
@@ -350,13 +400,16 @@ Finally:
 	;
 
 	--Clean-ups
-	DROP TABLE IF EXISTS #Base;
-	DROP TABLE IF EXISTS #Column;
-	DROP TABLE IF EXISTS #Parameter;
-	DROP TABLE IF EXISTS #Query;
-	DROP TABLE IF EXISTS #Error;
-	DROP TABLE IF EXISTS #Layout;
-	DROP TABLE IF EXISTS #Result;
-	DROP TABLE IF EXISTS #FinalResult;
+	IF OBJECT_NAME(@@PROCID) IS NOT NULL
+	BEGIN
+		DROP TABLE IF EXISTS #Base;
+		DROP TABLE IF EXISTS #Column;
+		DROP TABLE IF EXISTS #Parameter;
+		DROP TABLE IF EXISTS #Query;
+		DROP TABLE IF EXISTS #Error;
+		DROP TABLE IF EXISTS #Layout;
+		DROP TABLE IF EXISTS #Result;
+		DROP TABLE IF EXISTS #FinalResult;
+	END
 END
 GO
