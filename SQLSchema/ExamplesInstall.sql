@@ -57,15 +57,61 @@ IF @@ERROR <> 0 SET NOEXEC ON
 GO
 PRINT N'Example view vwStorage'
 GO
-CREATE OR ALTER VIEW dbo.vwStorage AS 
-SELECT a.Name, a.Quantity, a.Price, c.Name AS [MadeBy],c.ContactName AS [ComplainTo], a.SortingGroup
+SELECT TOP(10000000) a.Name, a.Quantity, a.Price, c.Name AS [MadeBy],c.ContactName AS [ComplainTo], a.SortingGroup
+	--Conditional formatting
+	,N'[
+		{
+			"Column": "Quantity",
+			"Fill": "'
+			+ CASE
+				WHEN a.Quantity*a.Price > 1000 THEN 'Red'
+				WHEN a.Quantity*a.Price > 500 THEN 'Orange'
+				WHEN a.Quantity*a.Price > 250 THEN 'Yellow'
+				ELSE 'Transparent'
+			  END
+			+ N'"
+		}
+		,
+		{
+			"Column": "Price",
+			"Fill": "'
+			+ CASE
+				WHEN a.Quantity*a.Price > 1000 THEN 'Red'
+				WHEN a.Quantity*a.Price > 500 THEN 'Orange'
+				WHEN a.Quantity*a.Price > 250 THEN 'Yellow'
+				ELSE 'Transparent'
+			  END
+			+ N'"
+		}
+		,
+		{
+			"Column": "Name",
+			"Font":{
+				"Color": "'
+				+ CASE
+					WHEN a.Name = 'Junk' THEN 'Blue'
+					ELSE 'Black'
+				  END
+				+ N'",
+				"Weight": "'
+				+ CASE
+					WHEN a.Name = 'Junk' THEN 'Bold'
+					ELSE 'Normal'
+				  END
+				+ N'"
+			}
+		}
+	]' AS [_TheRDLLayoutOverrideJSON_]
+	--
 FROM (VALUES
 	 (NULL,'Shelf','Cartbox',23, 0.01)
 	,(NULL,'Bucket','Junk',34, 0)
-	,('Amazon','Shelf','Alexa Echo',1, 30)
+	,('Google','Shelf','Pixel 3',1, 270)
+	,('Amazon','Shelf','Alexa Echo',20, 30)
 	,('Future Motion','Garage','Onewheel XR',1, 2500)
 )a(CustomerName,SortingGroup,Name,Quantity,Price)
 LEFT JOIN dbo.Customer c ON c.Name COLLATE DATABASE_DEFAULT = a.CustomerName COLLATE DATABASE_DEFAULT
+ORDER BY a.Name
 ;
 GO
 IF @@ERROR <> 0 SET NOEXEC ON
