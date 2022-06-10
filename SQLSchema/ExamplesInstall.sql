@@ -57,6 +57,7 @@ IF @@ERROR <> 0 SET NOEXEC ON
 GO
 PRINT N'Example view vwStorage'
 GO
+CREATE OR ALTER VIEW dbo.vwStorage AS
 SELECT TOP(10000000) a.Name, a.Quantity, a.Price, c.Name AS [MadeBy],c.ContactName AS [ComplainTo], a.SortingGroup
 	--Conditional formatting
 	,N'[
