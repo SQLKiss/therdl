@@ -101,13 +101,7 @@ ORDER BY s.Code
             <TablixBody>
               <TablixColumns>
                 <TablixColumn>
-                  <Width>0.89583in</Width>
-                </TablixColumn>
-                <TablixColumn>
-                  <Width>1.28125in</Width>
-                </TablixColumn>
-                <TablixColumn>
-                  <Width>2.0625in</Width>
+                  <Width>1.71875in</Width>
                 </TablixColumn>
               </TablixColumns>
               <TablixRows>
@@ -150,12 +144,9 @@ ORDER BY s.Code
                             <PaddingBottom>2pt</PaddingBottom>
                           </Style>
                         </Textbox>
-                        <ColSpan>3</ColSpan>
                       </CellContents>
                       <DataElementOutput>Output</DataElementOutput>
                     </TablixCell>
-                    <TablixCell />
-                    <TablixCell />
                   </TablixCells>
                 </TablixRow>
                 <TablixRow>
@@ -204,12 +195,9 @@ ORDER BY s.Code
                             <PaddingBottom>2pt</PaddingBottom>
                           </Style>
                         </Textbox>
-                        <ColSpan>3</ColSpan>
                       </CellContents>
                       <DataElementOutput>Output</DataElementOutput>
                     </TablixCell>
-                    <TablixCell />
-                    <TablixCell />
                   </TablixCells>
                 </TablixRow>
               </TablixRows>
@@ -229,16 +217,6 @@ ORDER BY s.Code
                   </SortExpressions>
                   <TablixMembers>
                     <TablixMember />
-                    <TablixMember>
-                      <Visibility>
-                        <Hidden>=Max(Len(CStr(Fields!Value.Value)))&lt;10 AndAlso Max(Len(CStr(Fields!ColumnName.Value)))&lt;10</Hidden>
-                      </Visibility>
-                    </TablixMember>
-                    <TablixMember>
-                      <Visibility>
-                        <Hidden>=Max(Len(CStr(Fields!Value.Value)))&lt;50 AndAlso Max(Len(CStr(Fields!ColumnName.Value)))&lt;50</Hidden>
-                      </Visibility>
-                    </TablixMember>
                   </TablixMembers>
                   <DataElementOutput>Output</DataElementOutput>
                   <KeepTogether>true</KeepTogether>
@@ -327,14 +305,14 @@ ORDER BY s.Code
             <RepeatRowHeaders>true</RepeatRowHeaders>
             <DataSetName>MainDataSet</DataSetName>
             <Height>0.46in</Height>
-            <Width>4.54166in</Width>
+            <Width>2.02083in</Width>
             <Style />
           </Tablix>
         </ReportItems>
         <Height>0.48542in</Height>
         <Style />
       </Body>
-      <Width>4.55208in</Width>
+      <Width>2.05208in</Width>
       <Page>
         <LeftMargin>1in</LeftMargin>
         <RightMargin>1in</RightMargin>
