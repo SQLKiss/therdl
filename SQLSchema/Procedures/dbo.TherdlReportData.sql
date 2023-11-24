@@ -160,7 +160,7 @@ BEGIN
 					SELECT ',"' + col.name + '"'
 					FROM OPENJSON(b.Columns) cc
 					INNER JOIN #Column col ON col.DBName COLLATE DATABASE_DEFAULT = b.DBName COLLATE DATABASE_DEFAULT AND col.name COLLATE DATABASE_DEFAULT = cc.[Value] COLLATE DATABASE_DEFAULT
-					ORDER BY cc.[Key]
+					ORDER BY TRY_CONVERT(INT,cc.[Key]),cc.[Key]
 					FOR XML PATH(''),TYPE).value('(./text())[1]','NVARCHAR(MAX)')
 					,1,1,'') + ']' AS [ValidatedColumns]
 			FROM #Base b
