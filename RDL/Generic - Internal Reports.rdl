@@ -1,0 +1,233 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Report MustUnderstand="df" xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner" xmlns:df="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition/defaultfontfamily" xmlns:am="http://schemas.microsoft.com/sqlserver/reporting/authoringmetadata">
+  <am:AuthoringMetadata>
+    <am:CreatedBy>
+      <am:Name>SSDTRS</am:Name>
+      <am:Version>17.7.34024.191</am:Version>
+    </am:CreatedBy>
+    <am:UpdatedBy>
+      <am:Name>SSDTRS</am:Name>
+      <am:Version>17.7.34024.191</am:Version>
+    </am:UpdatedBy>
+    <am:LastModifiedTimestamp>2023-09-11T03:56:06.9292982Z</am:LastModifiedTimestamp>
+  </am:AuthoringMetadata>
+  <df:DefaultFontFamily>Segoe UI</df:DefaultFontFamily>
+  <AutoRefresh>0</AutoRefresh>
+  <DataSources>
+    <DataSource Name="TestDB">
+      <DataSourceReference>TestDB</DataSourceReference>
+      <rd:SecurityType>None</rd:SecurityType>
+      <rd:DataSourceID>5add6493-11f3-42cb-b79d-6daa8d6e5227</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <DataSets>
+    <DataSet Name="Codes">
+      <Query>
+        <DataSourceName>TestDB</DataSourceName>
+        <CommandText>SELECT s.Code
+FROM dbo.TherdlSetting s
+WHERE s.OrderID &gt; 0 /*no need to select errors*/
+ORDER BY s.Code
+;</CommandText>
+        <rd:UseGenericDesigner>true</rd:UseGenericDesigner>
+      </Query>
+      <Fields>
+        <Field Name="Code">
+          <DataField>Code</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+      </Fields>
+    </DataSet>
+    <DataSet Name="Customers">
+      <Query>
+        <DataSourceName>TestDB</DataSourceName>
+        <CommandText>SELECT 0 AS [CustomerID],' NULL CustomerID' AS [CustomerName]
+UNION ALL
+SELECT rc.CustomerID,rc.CustomerName
+FROM dbo.vw_ReportCustomer rc
+ORDER BY [CustomerName]</CommandText>
+      </Query>
+	  <Fields>
+		  <Field Name="CustomerID">
+			<DataField>CustomerID</DataField>
+			<rd:TypeName>System.Int32</rd:TypeName>
+		  </Field>
+		  <Field Name="CustomerName">
+			<DataField>CustomerName</DataField>
+			<rd:TypeName>System.String</rd:TypeName>
+		  </Field>
+		</Fields>
+    </DataSet>
+    <DataSet Name="Descriptions">
+      <Query>
+        <DataSourceName>TestDB</DataSourceName>
+        <QueryParameters>
+          <QueryParameter Name="@Code">
+            <Value>=Parameters!Code.Value</Value>
+          </QueryParameter>
+        </QueryParameters>
+        <CommandText>SELECT TOP(1) s.Description
+FROM dbo.TherdlSetting s
+WHERE s.Code = @Code
+ORDER BY s.Code
+;</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="Description">
+          <DataField>Description</DataField>
+          <rd:TypeName>System.String</rd:TypeName>
+        </Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Subreport Name="TheRDL">
+            <ReportName>SQLKiss - TheRDL</ReportName>
+            <Parameters>
+              <Parameter Name="Code">
+                <Value>=Parameters!Code.Value</Value>
+              </Parameter>
+              <Parameter Name="Params">
+                <Value>=Parameters!Params.Value</Value>
+              </Parameter>
+              <Parameter Name="Filters">
+                <Value>="{""CustomerID"":[" &amp; Join(Parameters!CustomerID.Value,",") &amp; "]" 
+	&amp; IIf(IsNothing(Parameters!Filters.Value)
+		,"}"
+		,"," &amp; Mid(Trim(Parameters!Filters.Value),2,Len(Trim(Parameters!Filters.Value)))
+	)</Value>
+              </Parameter>
+            </Parameters>
+            <Height>1.17708in</Height>
+            <Width>4.03125in</Width>
+            <Style>
+              <Border>
+                <Style>None</Style>
+              </Border>
+            </Style>
+          </Subreport>
+        </ReportItems>
+        <Height>1.17708in</Height>
+        <Style />
+      </Body>
+      <Width>4.03125in</Width>
+      <Page>
+        <LeftMargin>1in</LeftMargin>
+        <RightMargin>1in</RightMargin>
+        <TopMargin>1in</TopMargin>
+        <BottomMargin>1in</BottomMargin>
+        <Style />
+      </Page>
+    </ReportSection>
+  </ReportSections>
+  <ReportParameters>
+    <ReportParameter Name="Code">
+      <DataType>String</DataType>
+      <Prompt>Select Report</Prompt>
+      <ValidValues>
+        <DataSetReference>
+          <DataSetName>Codes</DataSetName>
+          <ValueField>Code</ValueField>
+          <LabelField>Code</LabelField>
+        </DataSetReference>
+      </ValidValues>
+    </ReportParameter>
+    <ReportParameter Name="Description">
+      <DataType>String</DataType>
+      <Nullable>true</Nullable>
+      <DefaultValue>
+        <DataSetReference>
+          <DataSetName>Descriptions</DataSetName>
+          <ValueField>Description</ValueField>
+        </DataSetReference>
+      </DefaultValue>
+      <AllowBlank>true</AllowBlank>
+      <Prompt>Description</Prompt>
+      <ValidValues>
+        <DataSetReference>
+          <DataSetName>Descriptions</DataSetName>
+          <ValueField>Description</ValueField>
+          <LabelField>Description</LabelField>
+        </DataSetReference>
+      </ValidValues>
+    </ReportParameter>
+    <ReportParameter Name="CustomerID">
+      <DataType>Integer</DataType>
+      <DefaultValue>
+        <DataSetReference>
+          <DataSetName>Customers</DataSetName>
+          <ValueField>CustomerID</ValueField>
+        </DataSetReference>
+      </DefaultValue>
+      <Prompt>Customer</Prompt>
+      <ValidValues>
+        <DataSetReference>
+          <DataSetName>Customers</DataSetName>
+          <ValueField>CustomerID</ValueField>
+          <LabelField>CustomerName</LabelField>
+        </DataSetReference>
+      </ValidValues>
+      <MultiValue>true</MultiValue>
+    </ReportParameter>
+    <ReportParameter Name="Params">
+      <DataType>String</DataType>
+      <Nullable>true</Nullable>
+      <DefaultValue>
+        <Values>
+          <Value xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true" />
+        </Values>
+      </DefaultValue>
+      <Prompt>Parameters JSON</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="Filters">
+      <DataType>String</DataType>
+      <Nullable>true</Nullable>
+      <DefaultValue>
+        <Values>
+          <Value xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true" />
+        </Values>
+      </DefaultValue>
+      <Prompt>Filters JSON</Prompt>
+    </ReportParameter>
+  </ReportParameters>
+  <ReportParametersLayout>
+    <GridLayoutDefinition>
+      <NumberOfColumns>4</NumberOfColumns>
+      <NumberOfRows>2</NumberOfRows>
+      <CellDefinitions>
+        <CellDefinition>
+          <ColumnIndex>0</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>Code</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>1</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>Description</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>2</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>CustomerID</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>3</ColumnIndex>
+          <RowIndex>0</RowIndex>
+          <ParameterName>Params</ParameterName>
+        </CellDefinition>
+        <CellDefinition>
+          <ColumnIndex>0</ColumnIndex>
+          <RowIndex>1</RowIndex>
+          <ParameterName>Filters</ParameterName>
+        </CellDefinition>
+      </CellDefinitions>
+    </GridLayoutDefinition>
+  </ReportParametersLayout>
+  <Language>en-US</Language>
+  <ConsumeContainerWhitespace>true</ConsumeContainerWhitespace>
+  <rd:ReportUnitType>Inch</rd:ReportUnitType>
+  <rd:ReportID>f625a002-4771-4a14-bb09-58ce51d62a67</rd:ReportID>
+</Report>
